@@ -1,5 +1,11 @@
 [
     {
+        "mode": "Reset",
+        "name": "Internet Download Manager",
+        "path": null,
+        "date": null
+    },
+    {
         "mode": "Freeze",
         "name": "WinRAR.exe",
         "path": "C:/Program Files/WinRAR/WinRAR.exe",

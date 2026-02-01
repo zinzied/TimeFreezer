@@ -2,6 +2,8 @@ import winreg
 import os
 import shutil
 import pathlib
+from modules.registry_scanner import RegistryScanner
+from core.win_utils import WinUtils
 
 class TrialResetter:
     def __init__(self, app_name):
@@ -64,10 +66,22 @@ class TrialResetter:
                 except Exception as e:
                     self.log(f"Error deleting folder {folder}: {e}")
 
-    def run_full_reset(self):
+    def run_full_reset(self, deep_scan=False):
         self.log(f"Starting reset for: {self.app_name}")
         self.reset_registry()
         self.reset_files()
+        
+        if deep_scan:
+            self.log("Running deep heuristic scan for trial keys...")
+            scanner = RegistryScanner()
+            keys = scanner.scan_clsid_keys()
+            for root, path in keys:
+                try:
+                    self.delete_key_recursive(root, path)
+                    self.log(f"Heuristic Match Removed: {path}")
+                except Exception as e:
+                    self.log(f"Failed to remove heuristic match {path}: {e}")
+                    
         self.log("Reset process completed.")
         return self.logs
 

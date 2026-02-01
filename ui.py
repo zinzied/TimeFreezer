@@ -70,6 +70,12 @@ class TimeFreezerApp(ctk.CTk):
                                      date_pattern='yyyy-mm-dd')
         self.date_picker.pack(pady=10)
         
+        # Advanced Lock Checkbox
+        self.lock_registry_var = ctk.BooleanVar(value=False)
+        self.lock_checkbox = ctk.CTkCheckBox(self.freeze_frame, text="Use Registry Lock (Hard Freeze)", 
+                                             variable=self.lock_registry_var)
+        self.lock_checkbox.pack(pady=5)
+
         # History Dropdown for Freeze
         self.freeze_history_var = ctk.StringVar(value="Recent History")
         self.freeze_history_dropdown = ctk.CTkComboBox(self.freeze_frame, 
@@ -107,6 +113,12 @@ class TimeFreezerApp(ctk.CTk):
                                                   fg_color="#2c3e50", hover_color="#1a252f", command=self.browse_reset_exe)
         self.reset_browse_button.pack(pady=5)
         
+        # Deep Scan Checkbox
+        self.deep_scan_var = ctk.BooleanVar(value=True)
+        self.deep_scan_checkbox = ctk.CTkCheckBox(self.reset_frame, text="Include Deep Heuristic Scan", 
+                                                   variable=self.deep_scan_var)
+        self.deep_scan_checkbox.pack(pady=5)
+
         # History Dropdown for Reset
         self.reset_history_var = ctk.StringVar(value="Recent History")
         self.reset_history_dropdown = ctk.CTkComboBox(self.reset_frame, 
@@ -191,6 +203,7 @@ class TimeFreezerApp(ctk.CTk):
 
         exe = self.exe_path_var.get()
         date_str = self.date_picker.get()
+        lock_reg = self.lock_registry_var.get()
         
         if exe == "No file selected" or not date_str:
             messagebox.showerror("Error", "Please select an EXE and enter a date.")
@@ -199,7 +212,7 @@ class TimeFreezerApp(ctk.CTk):
         def task():
             self.status_label.configure(text="Processing... Please wait.")
             freezer = TimeFreezer(exe, date_str)
-            freezer.launch()
+            freezer.launch(lock_registry=lock_reg)
             # Save to history
             app_name = os.path.basename(exe)
             self.history_manager.add_entry("Freeze", app_name, exe, date_str)
@@ -212,14 +225,19 @@ class TimeFreezerApp(ctk.CTk):
 
     def run_reset(self):
         app_name = self.app_name_entry.get()
+        use_deep = self.deep_scan_var.get()
         if not app_name:
             messagebox.showerror("Error", "Please enter the application name.")
             return
         
-        if messagebox.askyesno("Confirm Reset", f"Are you sure you want to reset all data for '{app_name}'? \nThis action cannot be undone."):
+        msg = f"Sure you want to reset '{app_name}'?"
+        if use_deep:
+            msg += "\n(Deep Heuristic Scan enabled - will remove hidden trial keys)"
+            
+        if messagebox.askyesno("Confirm Reset", msg):
             self.reset_status.delete("1.0", "end")
             resetter = TrialResetter(app_name)
-            logs = resetter.run_full_reset()
+            logs = resetter.run_full_reset(deep_scan=use_deep)
             # Save to history
             self.history_manager.add_entry("Reset", app_name)
             self.refresh_history_ui()

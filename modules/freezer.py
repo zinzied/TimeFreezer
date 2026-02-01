@@ -5,6 +5,8 @@ import win32api
 import win32security
 import ntsecuritycon as con
 from datetime import datetime
+from core.win_utils import WinUtils
+from modules.registry_scanner import RegistryScanner
 
 class TimeFreezer:
     def __init__(self, target_exe, target_date_str):
@@ -28,14 +30,23 @@ class TimeFreezer:
                       current.hour, current.minute, current.second, 0)
         win32api.SetSystemTime(*time_tuple)
 
-    def launch(self, delay=5):
+    def launch(self, delay=5, lock_registry=False):
         """
         Temporarily changes time, launches exe, and restores time.
+        Optionally locks detected trial registry keys before launch.
         """
         try:
             self.enable_time_privilege()
             self.original_time = datetime.now()
             
+            if lock_registry:
+                print("Protecting registry trial keys...")
+                scanner = RegistryScanner()
+                keys = scanner.scan_clsid_keys()
+                for root, path in keys:
+                    WinUtils.set_registry_lock(root, path, lock=True)
+                print(f"Locked {len(keys)} potential trial keys.")
+
             print(f"Bypassing trial... temporarily setting date to {self.target_date.date()}")
             self.set_system_time(self.target_date)
             
