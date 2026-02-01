@@ -119,6 +119,12 @@ class TimeFreezerApp(ctk.CTk):
                                                    variable=self.deep_scan_var)
         self.deep_scan_checkbox.pack(pady=5)
 
+        # Permanent Lock Checkbox
+        self.perm_lock_var = ctk.BooleanVar(value=False)
+        self.perm_lock_checkbox = ctk.CTkCheckBox(self.reset_frame, text="Lock Registry after Reset (Permanent Freeze)", 
+                                                 variable=self.perm_lock_var)
+        self.perm_lock_checkbox.pack(pady=5)
+
         # History Dropdown for Reset
         self.reset_history_var = ctk.StringVar(value="Recent History")
         self.reset_history_dropdown = ctk.CTkComboBox(self.reset_frame, 
@@ -226,18 +232,21 @@ class TimeFreezerApp(ctk.CTk):
     def run_reset(self):
         app_name = self.app_name_entry.get()
         use_deep = self.deep_scan_var.get()
+        use_lock = self.perm_lock_var.get()
         if not app_name:
             messagebox.showerror("Error", "Please enter the application name.")
             return
         
         msg = f"Sure you want to reset '{app_name}'?"
         if use_deep:
-            msg += "\n(Deep Heuristic Scan enabled - will remove hidden trial keys)"
+            msg += "\n- Deep Heuristic Scan enabled"
+        if use_lock:
+            msg += "\n- Permanent Registry Locking enabled"
             
         if messagebox.askyesno("Confirm Reset", msg):
             self.reset_status.delete("1.0", "end")
             resetter = TrialResetter(app_name)
-            logs = resetter.run_full_reset(deep_scan=use_deep)
+            logs = resetter.run_full_reset(deep_scan=use_deep, lock=use_lock)
             # Save to history
             self.history_manager.add_entry("Reset", app_name)
             self.refresh_history_ui()

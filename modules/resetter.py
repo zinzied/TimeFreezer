@@ -66,21 +66,32 @@ class TrialResetter:
                 except Exception as e:
                     self.log(f"Error deleting folder {folder}: {e}")
 
-    def run_full_reset(self, deep_scan=False):
+    def run_full_reset(self, deep_scan=False, lock=False):
         self.log(f"Starting reset for: {self.app_name}")
         self.reset_registry()
         self.reset_files()
         
-        if deep_scan:
+        found_keys = []
+        if deep_scan or lock:
             self.log("Running deep heuristic scan for trial keys...")
             scanner = RegistryScanner()
-            keys = scanner.scan_clsid_keys()
-            for root, path in keys:
-                try:
-                    self.delete_key_recursive(root, path)
-                    self.log(f"Heuristic Match Removed: {path}")
-                except Exception as e:
-                    self.log(f"Failed to remove heuristic match {path}: {e}")
+            found_keys = scanner.scan_clsid_keys()
+
+            if deep_scan:
+                for root, path in found_keys:
+                    try:
+                        self.delete_key_recursive(root, path)
+                        self.log(f"Heuristic Match Removed: {path}")
+                    except Exception as e:
+                        self.log(f"Failed to remove heuristic match {path}: {e}")
+            
+            if lock:
+                self.log("Applying permanent registry lock to trial markers...")
+                for root, path in found_keys:
+                    if WinUtils.set_registry_lock(root, path, lock=True):
+                        self.log(f"Locked Key (Permanent Freeze): {path}")
+                    else:
+                        self.log(f"Failed to lock key: {path}")
                     
         self.log("Reset process completed.")
         return self.logs
