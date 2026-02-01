@@ -2,6 +2,7 @@ import win32api
 import win32security
 import ntsecuritycon as con
 import winreg
+import win32con
 
 class WinUtils:
     @staticmethod
@@ -74,8 +75,6 @@ class WinUtils:
             # Add Deny ACE for Everyone
             # con.GENERIC_ALL covers FullControl
             dacl.AddAccessDeniedAce(win32security.ACL_REVISION, con.GENERIC_ALL, everyone_sid)
-            # We also set owner to None (S-1-0-0) like the script does, but that's tricky in pywin32.
-            # Usually Deny ACE is enough.
         else:
             # Add Allow ACE for Everyone (Reset to default-ish)
             dacl.AddAccessAllowedAce(win32security.ACL_REVISION, con.GENERIC_ALL, everyone_sid)
@@ -90,5 +89,41 @@ class WinUtils:
             win32api.RegCloseKey(hKey)
             return False
 
-# Import win32con here because it might not be globally available in all environments
-import win32con
+    @staticmethod
+    def get_exe_info(file_path):
+        """Extracts Product Name and Company Name from an EXE file."""
+        import os
+        if not os.path.exists(file_path):
+            return None
+        
+        try:
+            # Get the size of the version info
+            size = win32api.GetFileVersionInfoSize(file_path)
+            if not size:
+                return None
+            
+            # Get the translation list
+            trans = win32api.GetFileVersionInfo(file_path, "\\VarFileInfo\\Translation")
+            if not trans:
+                return None
+            
+            lang, codepage = trans[0]
+            
+            # Format the string for querying
+            str_info = u"\\StringFileInfo\\%04X%04X\\%s"
+            
+            def get_val(name):
+                try:
+                    return win32api.GetFileVersionInfo(file_path, str_info % (lang, codepage, name))
+                except:
+                    return None
+
+            product_name = get_val("ProductName")
+            company_name = get_val("CompanyName")
+            
+            return {
+                "ProductName": product_name.strip() if product_name else None,
+                "CompanyName": company_name.strip() if company_name else None
+            }
+        except Exception:
+            return None

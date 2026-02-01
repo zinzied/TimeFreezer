@@ -4,6 +4,7 @@ import threading
 from tkinter import filedialog, messagebox
 from tkcalendar import DateEntry
 from core.history_manager import HistoryManager
+from core.win_utils import WinUtils
 from modules.freezer import TimeFreezer
 from modules.resetter import TrialResetter
 
@@ -12,248 +13,230 @@ class TimeFreezerApp(ctk.CTk):
         super().__init__()
 
         self.title("TimeFreezer Pro - Premium Trial Management")
-        self.geometry("800x500")
-        
-        # Set appearance
+        self.geometry("900x650")
+
         ctk.set_appearance_mode("Dark")
         ctk.set_default_color_theme("blue")
 
-        # History Manager
         self.history_manager = HistoryManager()
         self.history = self.history_manager.load_history()
 
-        # Create sidebar
-        self.sidebar_frame = ctk.CTkFrame(self, width=140, corner_radius=0)
-        self.sidebar_frame.grid(row=0, column=0, rowspan=4, sticky="nsew")
-        self.sidebar_frame.grid_rowconfigure(4, weight=1)
-        
-        self.logo_label = ctk.CTkLabel(self.sidebar_frame, text="TimeFreezer", font=ctk.CTkFont(size=20, weight="bold"))
-        self.logo_label.grid(row=0, column=0, padx=20, pady=(20, 10))
-        
-        self.sidebar_button_1 = ctk.CTkButton(self.sidebar_frame, text="Time Freeze", command=self.show_freeze_tab)
-        self.sidebar_button_1.grid(row=1, column=0, padx=20, pady=10)
-        
-        self.sidebar_button_2 = ctk.CTkButton(self.sidebar_frame, text="Trial Reset", command=self.show_reset_tab)
-        self.sidebar_button_2.grid(row=2, column=0, padx=20, pady=10)
-
-        # Main content area
-        self.main_frame = ctk.CTkFrame(self, corner_radius=10, fg_color="transparent")
-        self.main_frame.grid(row=0, column=1, padx=20, pady=20, sticky="nsew")
         self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(0, weight=1)
 
-        self.setup_freeze_tab()
-        self.setup_reset_tab()
-        
+        self.sidebar_frame = ctk.CTkFrame(self, width=140, corner_radius=0)
+        self.sidebar_frame.grid(row=0, column=0, rowspan=2, sticky="nsew")
+
+        self.logo_label = ctk.CTkLabel(self.sidebar_frame, text="TimeFreezer", font=ctk.CTkFont(size=20, weight="bold"))
+        self.logo_label.pack(pady=20)
+
+        self.btn_freeze = ctk.CTkButton(self.sidebar_frame, text="Time Freeze", command=self.show_freeze_tab)
+        self.btn_freeze.pack(pady=10, padx=20)
+
+        self.btn_reset = ctk.CTkButton(self.sidebar_frame, text="Trial Reset", command=self.show_reset_tab)
+        self.btn_reset.pack(pady=10, padx=20)
+
+        self.main_container = ctk.CTkFrame(self, fg_color="transparent")
+        self.main_container.grid(row=0, column=1, padx=20, pady=20, sticky="nsew")
+        self.main_container.grid_columnconfigure(0, weight=1)
+        self.main_container.grid_rowconfigure(0, weight=1)
+
+        self.freeze_tab = self.create_freeze_tab()
+        self.reset_tab = self.create_reset_tab()
+
+        self.bottom_frame = ctk.CTkFrame(self, height=250)
+        self.bottom_frame.grid(row=1, column=1, sticky="nsew", padx=20, pady=(0, 20))
+        self.bottom_frame.grid_columnconfigure(0, weight=1)
+
+        self.progress_bar = ctk.CTkProgressBar(self.bottom_frame)
+        self.progress_bar.pack(fill="x", padx=20, pady=10)
+        self.progress_bar.set(0)
+
+        self.console = ctk.CTkTextbox(self.bottom_frame, height=150, font=("Consolas", 12))
+        self.console.pack(fill="both", expand=True, padx=20, pady=(0, 10))
+        self.log("Welcome to TimeFreezer Pro. Ready.")
+
         self.show_freeze_tab()
 
-    def setup_freeze_tab(self):
-        self.freeze_frame = ctk.CTkFrame(self.main_frame, fg_color="transparent")
-        
-        label = ctk.CTkLabel(self.freeze_frame, text="Freeze Application Date", font=ctk.CTkFont(size=24, weight="bold"))
-        label.pack(pady=20)
-        
-        self.exe_path_var = ctk.StringVar(value="No file selected")
-        self.exe_label = ctk.CTkLabel(self.freeze_frame, textvariable=self.exe_path_var)
-        self.exe_label.pack(pady=5)
-        
-        self.select_button = ctk.CTkButton(self.freeze_frame, text="Select .exe", command=self.select_exe)
-        self.select_button.pack(pady=10)
-        
-        # Calendar Label
-        self.cal_label = ctk.CTkLabel(self.freeze_frame, text="Target Freeze Date:")
-        self.cal_label.pack(pady=(10, 0))
-        
-        # DateEntry with custom styling to match dark theme
-        self.date_picker = DateEntry(self.freeze_frame, width=12, background='#1f538d', 
-                                     foreground='white', borderwidth=2, 
-                                     date_pattern='yyyy-mm-dd')
-        self.date_picker.pack(pady=10)
-        
-        # Advanced Lock Checkbox
-        self.lock_registry_var = ctk.BooleanVar(value=False)
-        self.lock_checkbox = ctk.CTkCheckBox(self.freeze_frame, text="Use Registry Lock (Hard Freeze)", 
-                                             variable=self.lock_registry_var)
-        self.lock_checkbox.pack(pady=5)
-
-        # History Dropdown for Freeze
-        self.freeze_history_var = ctk.StringVar(value="Recent History")
-        self.freeze_history_dropdown = ctk.CTkComboBox(self.freeze_frame, 
-                                                       values=self.get_history_values("Freeze"),
-                                                       variable=self.freeze_history_var,
-                                                       command=self.load_from_freeze_history,
-                                                       width=300)
-        self.freeze_history_dropdown.pack(pady=10)
-
-        self.launch_button = ctk.CTkButton(self.freeze_frame, text="LAUNCH WITH FROZEN TIME", 
-                                           fg_color="#1f538d", hover_color="#14375e", command=self.run_freeze)
-        self.launch_button.pack(pady=20)
-        
-        self.status_label = ctk.CTkLabel(self.freeze_frame, text="", text_color="gray")
-        self.status_label.pack(pady=10)
-        
-        # New: Path Hint Label
-        self.hint_label = ctk.CTkLabel(self.freeze_frame, 
-                                       text="💡 Tip: Look in 'C:\\Program Files' for the app's .exe.\n'ProgramData' usually only contains trial data files.",
-                                       text_color="#3498db", font=ctk.CTkFont(size=12))
-        self.hint_label.pack(pady=10)
-
-    def setup_reset_tab(self):
-        self.reset_frame = ctk.CTkFrame(self.main_frame, fg_color="transparent")
-        
-        label = ctk.CTkLabel(self.reset_frame, text="Deep Trial Reset", font=ctk.CTkFont(size=24, weight="bold"))
-        label.pack(pady=20)
-        
-        # App name entry
-        self.app_name_entry = ctk.CTkEntry(self.reset_frame, placeholder_text="Enter App Name (e.g. Photoshop)", width=300)
-        self.app_name_entry.pack(pady=10)
-        
-        # Browse button
-        self.reset_browse_button = ctk.CTkButton(self.reset_frame, text="Or Browse for .exe", 
-                                                  fg_color="#2c3e50", hover_color="#1a252f", command=self.browse_reset_exe)
-        self.reset_browse_button.pack(pady=5)
-        
-        # Deep Scan Checkbox
-        self.deep_scan_var = ctk.BooleanVar(value=True)
-        self.deep_scan_checkbox = ctk.CTkCheckBox(self.reset_frame, text="Include Deep Heuristic Scan", 
-                                                   variable=self.deep_scan_var)
-        self.deep_scan_checkbox.pack(pady=5)
-
-        # Permanent Lock Checkbox
-        self.perm_lock_var = ctk.BooleanVar(value=False)
-        self.perm_lock_checkbox = ctk.CTkCheckBox(self.reset_frame, text="Lock Registry after Reset (Permanent Freeze)", 
-                                                 variable=self.perm_lock_var)
-        self.perm_lock_checkbox.pack(pady=5)
-
-        # History Dropdown for Reset
-        self.reset_history_var = ctk.StringVar(value="Recent History")
-        self.reset_history_dropdown = ctk.CTkComboBox(self.reset_frame, 
-                                                      values=self.get_history_values("Reset"),
-                                                      variable=self.reset_history_var,
-                                                      command=self.load_from_reset_history,
-                                                      width=300)
-        self.reset_history_dropdown.pack(pady=10)
-
-        self.scan_button = ctk.CTkButton(self.reset_frame, text="SCAN & RESET APP", 
-                                         fg_color="#d35400", hover_color="#a04000", command=self.run_reset)
-        self.scan_button.pack(pady=20)
-        
-        self.reset_status = ctk.CTkTextbox(self.reset_frame, height=150, width=500)
-        self.reset_status.pack(pady=10)
-
+    def log(self, message):
+        self.console.insert("end", f"> {message}\n")
+        self.console.see("end")
 
     def show_freeze_tab(self):
-        self.reset_frame.pack_forget()
-        self.freeze_frame.pack(fill="both", expand=True)
+        self.reset_tab.grid_forget()
+        self.freeze_tab.grid(row=0, column=0, sticky="nsew")
 
     def show_reset_tab(self):
-        self.freeze_frame.pack_forget()
-        self.reset_frame.pack(fill="both", expand=True)
+        self.freeze_tab.grid_forget()
+        self.reset_tab.grid(row=0, column=0, sticky="nsew")
 
-    def select_exe(self):
-        # Default to Program Files if possible
-        init_dir = "C:\\Program Files (x86)" if os.path.exists("C:\\Program Files (x86)") else "C:\\Program Files"
-        
-        filename = filedialog.askopenfilename(
-            title="Select Application Executable",
-            initialdir=init_dir,
-            filetypes=[("Executable files", "*.exe"), ("All Files", "*.*")]
-        )
-        if filename:
-            self.exe_path_var.set(filename)
+    def create_freeze_tab(self):
+        frame = ctk.CTkFrame(self.main_container, fg_color="transparent")
 
-    def browse_reset_exe(self):
-        """Browse for an .exe file and extract the app name from the folder."""
-        init_dir = "C:\\Program Files (x86)" if os.path.exists("C:\\Program Files (x86)") else "C:\\Program Files"
-        
-        filename = filedialog.askopenfilename(
-            title="Select Application Executable",
-            initialdir=init_dir,
-            filetypes=[("Executable files", "*.exe"), ("All Files", "*.*")]
-        )
-        if filename:
-            # Extract the folder name as the app name (e.g., "Internet Download Manager" from the path)
-            folder_name = os.path.basename(os.path.dirname(filename))
-            self.app_name_entry.delete(0, "end")
-            self.app_name_entry.insert(0, folder_name)
+        ctk.CTkLabel(frame, text="Freeze Application Date", font=ctk.CTkFont(size=24, weight="bold")).pack(pady=10)
 
-    def get_history_values(self, mode):
-        filtered = [f"{e['name']} ({e['date'] or e['path']})" for e in self.history if e['mode'] == mode]
-        return ["Recent History"] + filtered
+        self.freeze_exe_path = ctk.StringVar(value="No file selected")
+        ctk.CTkLabel(frame, textvariable=self.freeze_exe_path, wraplength=500).pack(pady=5)
 
-    def load_from_freeze_history(self, choice):
-        if choice == "Recent History": return
-        # Find entry
+        ctk.CTkButton(frame, text="Select .exe", command=self.select_freeze_exe).pack(pady=5)
+
+        ctk.CTkLabel(frame, text="Target Freeze Date:").pack(pady=(10, 0))
+        self.date_picker = DateEntry(frame, width=12, background="#1f538d", foreground="white", borderwidth=2, date_pattern="yyyy-mm-dd")
+        self.date_picker.pack(pady=5)
+
+        self.freeze_lock_var = ctk.BooleanVar(value=False)
+        ctk.CTkCheckBox(frame, text="Use Registry Lock (Hard Freeze)", variable=self.freeze_lock_var).pack(pady=5)
+
+        ctk.CTkLabel(frame, text="History:").pack(pady=(10, 0))
+        self.freeze_history_menu = ctk.CTkOptionMenu(frame, values=self.get_history_list("Freeze"), command=self.load_freeze_history, width=300)
+        self.freeze_history_menu.set("Recent History")
+        self.freeze_history_menu.pack(pady=5)
+
+        ctk.CTkButton(frame, text="LAUNCH WITH FROZEN TIME", fg_color="#1f538d", hover_color="#14375e", command=self.run_freeze).pack(pady=20)
+
+        return frame
+
+    def create_reset_tab(self):
+        frame = ctk.CTkFrame(self.main_container, fg_color="transparent")
+
+        ctk.CTkLabel(frame, text="Deep Trial Reset", font=ctk.CTkFont(size=24, weight="bold")).pack(pady=10)
+
+        self.reset_app_name = ctk.CTkEntry(frame, placeholder_text="App Name (e.g. Photoshop)", width=300)
+        self.reset_app_name.pack(pady=10)
+
+        ctk.CTkButton(frame, text="Auto-Detect from .exe", fg_color="#2c3e50", hover_color="#1a252f", command=self.detect_reset_app).pack(pady=5)
+
+        self.reset_deep_var = ctk.BooleanVar(value=True)
+        ctk.CTkCheckBox(frame, text="Deep Heuristic Scan", variable=self.reset_deep_var).pack(pady=5)
+
+        self.reset_lock_var = ctk.BooleanVar(value=False)
+        ctk.CTkCheckBox(frame, text="Lock Registry after Reset", variable=self.reset_lock_var).pack(pady=5)
+
+        ctk.CTkLabel(frame, text="History:").pack(pady=(10, 0))
+        self.reset_history_menu = ctk.CTkOptionMenu(frame, values=self.get_history_list("Reset"), command=self.load_reset_history, width=300)
+        self.reset_history_menu.set("Recent History")
+        self.reset_history_menu.pack(pady=5)
+
+        btn_row = ctk.CTkFrame(frame, fg_color="transparent")
+        btn_row.pack(pady=20)
+
+        ctk.CTkButton(btn_row, text="SCAN ONLY", fg_color="#7f8c8d", hover_color="#636e72", width=140, command=lambda: self.run_reset(scan_only=True)).pack(side="left", padx=10)
+        ctk.CTkButton(btn_row, text="FULL RESET", fg_color="#d35400", hover_color="#a04000", width=140, command=self.run_reset).pack(side="left", padx=10)
+
+        return frame
+
+    def get_history_list(self, mode):
+        items = [f"{e['name']} ({e.get('date') or 'Reset'})" for e in self.history if e['mode'] == mode]
+        base = ["Recent History", "Clear History"]
+        if items:
+            return base + ["---"] + items
+        return base + ["No History"]
+
+    def load_freeze_history(self, choice):
+        if choice in ["Recent History", "Clear History", "---", "No History"]:
+            if choice == "Clear History":
+                self.history_manager.clear_history()
+                self.refresh_ui()
+            return
         for e in self.history:
             if e['mode'] == "Freeze" and choice.startswith(e['name']):
-                self.exe_path_var.set(e['path'])
+                self.freeze_exe_path.set(e['path'])
                 self.date_picker.set_date(e['date'])
                 break
 
-    def load_from_reset_history(self, choice):
-        if choice == "Recent History": return
+    def load_reset_history(self, choice):
+        if choice in ["Recent History", "Clear History", "---", "No History"]:
+            if choice == "Clear History":
+                self.history_manager.clear_history()
+                self.refresh_ui()
+            return
         for e in self.history:
             if e['mode'] == "Reset" and choice.startswith(e['name']):
-                self.app_name_entry.delete(0, "end")
-                self.app_name_entry.insert(0, e['name'])
+                self.reset_app_name.delete(0, "end")
+                self.reset_app_name.insert(0, e['name'])
                 break
 
-    def refresh_history_ui(self):
+    def refresh_ui(self):
         self.history = self.history_manager.load_history()
-        self.freeze_history_dropdown.configure(values=self.get_history_values("Freeze"))
-        self.freeze_history_var.set("Recent History")
-        self.reset_history_dropdown.configure(values=self.get_history_values("Reset"))
-        self.reset_history_var.set("Recent History")
+        self.freeze_history_menu.configure(values=self.get_history_list("Freeze"))
+        self.freeze_history_menu.set("Recent History")
+        self.reset_history_menu.configure(values=self.get_history_list("Reset"))
+        self.reset_history_menu.set("Recent History")
+
+    def select_freeze_exe(self):
+        path = filedialog.askopenfilename(filetypes=[("EXE", "*.exe")])
+        if path:
+            self.freeze_exe_path.set(path)
+
+    def detect_reset_app(self):
+        path = filedialog.askopenfilename(filetypes=[("EXE", "*.exe")])
+        if path:
+            self.log(f"Extracting metadata from {os.path.basename(path)}...")
+            info = WinUtils.get_exe_info(path)
+            if info and info["ProductName"]:
+                name = info["ProductName"]
+                self.log(f"Detected: {name}")
+            else:
+                name = os.path.basename(os.path.dirname(path))
+                self.log(f"Metadata not found. Using folder name: {name}")
+
+            self.reset_app_name.delete(0, "end")
+            self.reset_app_name.insert(0, name)
 
     def run_freeze(self):
-
-        exe = self.exe_path_var.get()
-        date_str = self.date_picker.get()
-        lock_reg = self.lock_registry_var.get()
-        
-        if exe == "No file selected" or not date_str:
+        exe = self.freeze_exe_path.get()
+        date = self.date_picker.get()
+        if exe == "No file selected":
             messagebox.showerror("Error", "Please select an EXE and enter a date.")
             return
 
+        self.progress_bar.set(0)
+        self.progress_bar.start()
+
         def task():
-            self.status_label.configure(text="Processing... Please wait.")
-            freezer = TimeFreezer(exe, date_str)
-            freezer.launch(lock_registry=lock_reg)
-            # Save to history
-            app_name = os.path.basename(exe)
-            self.history_manager.add_entry("Freeze", app_name, exe, date_str)
-            self.after(0, self.refresh_history_ui)
-            
-            self.status_label.configure(text="Process launched and time restored.")
-            messagebox.showinfo("Success", "Application launched successfully!")
+            try:
+                freezer = TimeFreezer(exe, date, log_callback=self.log)
+                freezer.launch(lock_registry=self.freeze_lock_var.get())
+                self.history_manager.add_entry("Freeze", os.path.basename(exe), exe, date)
+            except Exception as e:
+                self.log(f"ERROR: {e}")
+            self.after(0, self.finish_task)
 
-        threading.Thread(target=task).start()
+        threading.Thread(target=task, daemon=True).start()
 
-    def run_reset(self):
-        app_name = self.app_name_entry.get()
-        use_deep = self.deep_scan_var.get()
-        use_lock = self.perm_lock_var.get()
-        if not app_name:
+    def run_reset(self, scan_only=False):
+        name = self.reset_app_name.get()
+        if not name:
             messagebox.showerror("Error", "Please enter the application name.")
             return
-        
-        msg = f"Sure you want to reset '{app_name}'?"
-        if use_deep:
-            msg += "\n- Deep Heuristic Scan enabled"
-        if use_lock:
-            msg += "\n- Permanent Registry Locking enabled"
-            
-        if messagebox.askyesno("Confirm Reset", msg):
-            self.reset_status.delete("1.0", "end")
-            resetter = TrialResetter(app_name)
-            logs = resetter.run_full_reset(deep_scan=use_deep, lock=use_lock)
-            # Save to history
-            self.history_manager.add_entry("Reset", app_name)
-            self.refresh_history_ui()
-            
-            for log in logs:
-                self.reset_status.insert("end", log + "\n")
-            messagebox.showinfo("Reset Complete", "The application trial reset has finished.")
+
+        if not scan_only and not messagebox.askyesno("Confirm", f"Perform full reset for {name}?"):
+            return
+
+        self.progress_bar.set(0)
+        self.progress_bar.start()
+
+        def task():
+            try:
+                resetter = TrialResetter(name, log_callback=self.log)
+                resetter.run_full_reset(
+                    deep_scan=self.reset_deep_var.get(),
+                    lock=self.reset_lock_var.get(),
+                    scan_only=scan_only
+                )
+                if not scan_only:
+                    self.history_manager.add_entry("Reset", name)
+            except Exception as e:
+                self.log(f"ERROR: {e}")
+            self.after(0, self.finish_task)
+
+        threading.Thread(target=task, daemon=True).start()
+
+    def finish_task(self):
+        self.progress_bar.stop()
+        self.progress_bar.set(1)
+        self.refresh_ui()
+        messagebox.showinfo("Done", "Operation completed.")
 
 if __name__ == "__main__":
     app = TimeFreezerApp()

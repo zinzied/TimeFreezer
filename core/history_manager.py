@@ -46,5 +46,11 @@ class HistoryManager:
         self.save_history(history)
         return history
 
+    def remove_entry(self, mode, name):
+        history = self.load_history()
+        history = [e for e in history if not (e['mode'] == mode and e['name'] == name)]
+        self.save_history(history)
+        return history
+
     def clear_history(self):
         self.save_history([])

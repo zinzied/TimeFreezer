@@ -1,15 +1,15 @@
 [
     {
-        "mode": "Freeze",
-        "name": "IDMan.exe",
-        "path": "C:/Program Files (x86)/Internet Download Manager/IDMan.exe",
-        "date": "2026-02-01"
-    },
-    {
         "mode": "Reset",
         "name": "Internet Download Manager",
         "path": null,
         "date": null
+    },
+    {
+        "mode": "Freeze",
+        "name": "IDMan.exe",
+        "path": "C:/Program Files (x86)/Internet Download Manager/IDMan.exe",
+        "date": "2026-02-01"
     },
     {
         "mode": "Freeze",

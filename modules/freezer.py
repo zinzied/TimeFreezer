@@ -9,10 +9,16 @@ from core.win_utils import WinUtils
 from modules.registry_scanner import RegistryScanner
 
 class TimeFreezer:
-    def __init__(self, target_exe, target_date_str):
+    def __init__(self, target_exe, target_date_str, log_callback=None):
         self.target_exe = target_exe
         self.target_date = datetime.strptime(target_date_str, "%Y-%m-%d")
         self.original_time = None
+        self.log_callback = log_callback
+
+    def log(self, message):
+        if self.log_callback:
+            self.log_callback(message)
+        print(message)
 
     def enable_time_privilege(self):
         """Enables the privilege to change system time."""
@@ -23,56 +29,40 @@ class TimeFreezer:
 
     def set_system_time(self, new_date):
         """Sets the system time (Requires Admin)."""
-        # Format for SetSystemTime: (Year, Month, DayOfWeek, Day, Hour, Minute, Second, Milliseconds)
-        # We'll keep the current time portion but change the date
         current = datetime.now()
         time_tuple = (new_date.year, new_date.month, 0, new_date.day, 
                       current.hour, current.minute, current.second, 0)
         win32api.SetSystemTime(*time_tuple)
 
     def launch(self, delay=5, lock_registry=False):
-        """
-        Temporarily changes time, launches exe, and restores time.
-        Optionally locks detected trial registry keys before launch.
-        """
         try:
             self.enable_time_privilege()
             self.original_time = datetime.now()
             
             if lock_registry:
-                print("Protecting registry trial keys...")
+                self.log("Protecting registry trial keys...")
                 scanner = RegistryScanner()
                 keys = scanner.scan_clsid_keys()
                 for root, path in keys:
                     WinUtils.set_registry_lock(root, path, lock=True)
-                print(f"Locked {len(keys)} potential trial keys.")
+                self.log(f"Locked {len(keys)} potential trial keys.")
 
-            print(f"Bypassing trial... temporarily setting date to {self.target_date.date()}")
+            self.log(f"Bypassing trial... temporarily setting date to {self.target_date.date()}")
             self.set_system_time(self.target_date)
             
-            # Launch process
-            print(f"Launching {self.target_exe}...")
-            # Use subprocess.Popen so we don't block
+            self.log(f"Launching {self.target_exe}...")
             subprocess.Popen([self.target_exe], cwd=os.path.dirname(self.target_exe))
             
-            print(f"Waiting {delay} seconds for initialization...")
+            self.log(f"Waiting {delay} seconds for initialization...")
             time.sleep(delay)
             
         except Exception as e:
-            print(f"An error occurred: {e}")
-            if "privelege" in str(e).lower():
-                print("Tip: Run as Administrator to allow time changes.")
+            self.log(f"An error occurred: {e}")
         finally:
             if self.original_time:
                 try:
-                    print("Restoring system time...")
+                    self.log("Restoring system time...")
                     self.set_system_time(self.original_time)
-                    print("Done.")
+                    self.log("Time restored.")
                 except Exception as e:
-                    print(f"Warning: Could not restore system time. Error: {e}")
-
-if __name__ == "__main__":
-    # Example usage (must be admin)
-    # freezer = TimeFreezer("C:\\Windows\\System32\\notepad.exe", "2020-01-01")
-    # freezer.launch()
-    pass
+                    self.log(f"Warning: Could not restore system time. Error: {e}")
