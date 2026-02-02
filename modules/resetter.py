@@ -12,8 +12,26 @@ class TrialResetter:
         self.logs.append(message)
         print(message)
 
+    def delete_key_recursive(self, key, subkey):
+        """Recursively deletes a registry key and all its subkeys."""
+        try:
+            hKey = winreg.OpenKey(key, subkey, 0, winreg.KEY_ALL_ACCESS)
+        except FileNotFoundError:
+            return
+
+        while True:
+            try:
+                # Always delete the first child until none are left
+                child = winreg.EnumKey(hKey, 0)
+                self.delete_key_recursive(hKey, child)
+            except OSError:
+                break
+        
+        winreg.CloseKey(hKey)
+        winreg.DeleteKey(key, subkey)
+
     def reset_registry(self):
-        """Attempts to delete registry keys associated with the app name."""
+        """Attempts to delete registry keys associated with the app name recursively."""
         locations = [
             (winreg.HKEY_CURRENT_USER, r"Software"),
             (winreg.HKEY_LOCAL_MACHINE, r"Software"),
@@ -21,14 +39,14 @@ class TrialResetter:
         ]
         
         for root, base_path in locations:
+            path = f"{base_path}\\{self.app_name}"
             try:
-                path = f"{base_path}\\{self.app_name}"
-                winreg.DeleteKey(root, path)
+                self.delete_key_recursive(root, path)
                 self.log(f"Deleted Registry Key: {path}")
             except FileNotFoundError:
                 pass
             except Exception as e:
-                self.log(f"Error deleting registry key {base_path}\\{self.app_name}: {e}")
+                self.log(f"Error deleting registry key {path}: {e}")
 
     def reset_files(self):
         """Deletes AppData and LocalAppData folders."""

@@ -3,6 +3,7 @@ import os
 import threading
 from tkinter import filedialog, messagebox
 from tkcalendar import DateEntry
+from core.history_manager import HistoryManager
 from modules.freezer import TimeFreezer
 from modules.resetter import TrialResetter
 
@@ -16,6 +17,10 @@ class TimeFreezerApp(ctk.CTk):
         # Set appearance
         ctk.set_appearance_mode("Dark")
         ctk.set_default_color_theme("blue")
+
+        # History Manager
+        self.history_manager = HistoryManager()
+        self.history = self.history_manager.load_history()
 
         # Create sidebar
         self.sidebar_frame = ctk.CTkFrame(self, width=140, corner_radius=0)
@@ -65,6 +70,15 @@ class TimeFreezerApp(ctk.CTk):
                                      date_pattern='yyyy-mm-dd')
         self.date_picker.pack(pady=10)
         
+        # History Dropdown for Freeze
+        self.freeze_history_var = ctk.StringVar(value="Recent History")
+        self.freeze_history_dropdown = ctk.CTkComboBox(self.freeze_frame, 
+                                                       values=self.get_history_values("Freeze"),
+                                                       variable=self.freeze_history_var,
+                                                       command=self.load_from_freeze_history,
+                                                       width=300)
+        self.freeze_history_dropdown.pack(pady=10)
+
         self.launch_button = ctk.CTkButton(self.freeze_frame, text="LAUNCH WITH FROZEN TIME", 
                                            fg_color="#1f538d", hover_color="#14375e", command=self.run_freeze)
         self.launch_button.pack(pady=20)
@@ -93,6 +107,15 @@ class TimeFreezerApp(ctk.CTk):
                                                   fg_color="#2c3e50", hover_color="#1a252f", command=self.browse_reset_exe)
         self.reset_browse_button.pack(pady=5)
         
+        # History Dropdown for Reset
+        self.reset_history_var = ctk.StringVar(value="Recent History")
+        self.reset_history_dropdown = ctk.CTkComboBox(self.reset_frame, 
+                                                      values=self.get_history_values("Reset"),
+                                                      variable=self.reset_history_var,
+                                                      command=self.load_from_reset_history,
+                                                      width=300)
+        self.reset_history_dropdown.pack(pady=10)
+
         self.scan_button = ctk.CTkButton(self.reset_frame, text="SCAN & RESET APP", 
                                          fg_color="#d35400", hover_color="#a04000", command=self.run_reset)
         self.scan_button.pack(pady=20)
@@ -136,6 +159,34 @@ class TimeFreezerApp(ctk.CTk):
             self.app_name_entry.delete(0, "end")
             self.app_name_entry.insert(0, folder_name)
 
+    def get_history_values(self, mode):
+        filtered = [f"{e['name']} ({e['date'] or e['path']})" for e in self.history if e['mode'] == mode]
+        return ["Recent History"] + filtered
+
+    def load_from_freeze_history(self, choice):
+        if choice == "Recent History": return
+        # Find entry
+        for e in self.history:
+            if e['mode'] == "Freeze" and choice.startswith(e['name']):
+                self.exe_path_var.set(e['path'])
+                self.date_picker.set_date(e['date'])
+                break
+
+    def load_from_reset_history(self, choice):
+        if choice == "Recent History": return
+        for e in self.history:
+            if e['mode'] == "Reset" and choice.startswith(e['name']):
+                self.app_name_entry.delete(0, "end")
+                self.app_name_entry.insert(0, e['name'])
+                break
+
+    def refresh_history_ui(self):
+        self.history = self.history_manager.load_history()
+        self.freeze_history_dropdown.configure(values=self.get_history_values("Freeze"))
+        self.freeze_history_var.set("Recent History")
+        self.reset_history_dropdown.configure(values=self.get_history_values("Reset"))
+        self.reset_history_var.set("Recent History")
+
     def run_freeze(self):
 
         exe = self.exe_path_var.get()
@@ -149,6 +200,11 @@ class TimeFreezerApp(ctk.CTk):
             self.status_label.configure(text="Processing... Please wait.")
             freezer = TimeFreezer(exe, date_str)
             freezer.launch()
+            # Save to history
+            app_name = os.path.basename(exe)
+            self.history_manager.add_entry("Freeze", app_name, exe, date_str)
+            self.after(0, self.refresh_history_ui)
+            
             self.status_label.configure(text="Process launched and time restored.")
             messagebox.showinfo("Success", "Application launched successfully!")
 
@@ -164,6 +220,10 @@ class TimeFreezerApp(ctk.CTk):
             self.reset_status.delete("1.0", "end")
             resetter = TrialResetter(app_name)
             logs = resetter.run_full_reset()
+            # Save to history
+            self.history_manager.add_entry("Reset", app_name)
+            self.refresh_history_ui()
+            
             for log in logs:
                 self.reset_status.insert("end", log + "\n")
             messagebox.showinfo("Reset Complete", "The application trial reset has finished.")
