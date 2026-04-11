@@ -27,12 +27,13 @@ class TimeFreezer:
         id = win32security.LookupPrivilegeValue(None, win32security.SE_SYSTEMTIME_NAME)
         win32security.AdjustTokenPrivileges(hToken, 0, [(id, win32security.SE_PRIVILEGE_ENABLED)])
 
-    def set_system_time(self, new_date):
+    def set_local_time(self, new_date):
         """Sets the system time (Requires Admin)."""
         current = datetime.now()
+        # Windows SYSTEMTIME structure: (year, month, dayOfWeek, day, hour, minute, second, millisecond)
         time_tuple = (new_date.year, new_date.month, 0, new_date.day, 
                       current.hour, current.minute, current.second, 0)
-        win32api.SetSystemTime(*time_tuple)
+        win32api.SetLocalTime(*time_tuple)
 
     def launch(self, delay=5, lock_registry=False):
         try:
@@ -48,7 +49,7 @@ class TimeFreezer:
                 self.log(f"Locked {len(keys)} potential trial keys.")
 
             self.log(f"Bypassing trial... temporarily setting date to {self.target_date.date()}")
-            self.set_system_time(self.target_date)
+            self.set_local_time(self.target_date)
             
             self.log(f"Launching {self.target_exe}...")
             subprocess.Popen([self.target_exe], cwd=os.path.dirname(self.target_exe))
@@ -62,7 +63,7 @@ class TimeFreezer:
             if self.original_time:
                 try:
                     self.log("Restoring system time...")
-                    self.set_system_time(self.original_time)
+                    self.set_local_time(self.original_time)
                     self.log("Time restored.")
                 except Exception as e:
                     self.log(f"Warning: Could not restore system time. Error: {e}")

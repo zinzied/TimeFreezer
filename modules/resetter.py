@@ -43,39 +43,58 @@ class TrialResetter:
         ]
         
         for root, base_path in locations:
-            path = f"{base_path}\{self.app_name}"
             try:
-                # Check if exists
-                hKey = winreg.OpenKey(root, path)
-                winreg.CloseKey(hKey)
-                if scan_only:
-                    self.log(f"[FOUND] Registry Key: {path}")
-                else:
-                    self.delete_key_recursive(root, path)
-                    self.log(f"Deleted Registry Key: {path}")
+                hBase = winreg.OpenKey(root, base_path, 0, winreg.KEY_READ)
+                i = 0
+                while True:
+                    try:
+                        subkey_name = winreg.EnumKey(hBase, i)
+                        full_path = f"{base_path}\{subkey_name}"
+                        
+                        # Match app name (case insensitive)
+                        if self.app_name.lower() in subkey_name.lower():
+                            if scan_only:
+                                self.log(f"[FOUND] Registry Key: {full_path}")
+                            else:
+                                self.delete_key_recursive(root, full_path)
+                                self.log(f"Deleted Registry Key: {full_path}")
+                                # Since we deleted, the index shifts, don't increment i
+                                continue
+                        i += 1
+                    except OSError:
+                        break
+                winreg.CloseKey(hBase)
             except FileNotFoundError:
                 pass
             except Exception as e:
-                self.log(f"Error accessing registry key {path}: {e}")
+                self.log(f"Error accessing base registry path {base_path}: {e}")
 
     def reset_files(self, scan_only=False):
         """Deletes AppData and LocalAppData folders."""
-        folders = [
-            os.path.join(os.environ.get('APPDATA', ''), self.app_name),
-            os.path.join(os.environ.get('LOCALAPPDATA', ''), self.app_name),
-            os.path.join(os.environ.get('PROGRAMDATA', 'C:\ProgramData'), self.app_name)
+        base_folders = [
+            os.environ.get('APPDATA', ''),
+            os.environ.get('LOCALAPPDATA', ''),
+            os.environ.get('PROGRAMDATA', 'C:\ProgramData')
         ]
         
-        for folder in folders:
-            if os.path.exists(folder):
-                if scan_only:
-                    self.log(f"[FOUND] Folder: {folder}")
-                else:
-                    try:
-                        shutil.rmtree(folder)
-                        self.log(f"Deleted Folder: {folder}")
-                    except Exception as e:
-                        self.log(f"Error deleting folder {folder}: {e}")
+        for base_folder in base_folders:
+            if not base_folder or not os.path.exists(base_folder):
+                continue
+                
+            try:
+                for entry in os.listdir(base_folder):
+                    full_path = os.path.join(base_folder, entry)
+                    if os.path.isdir(full_path) and self.app_name.lower() in entry.lower():
+                        if scan_only:
+                            self.log(f"[FOUND] Folder: {full_path}")
+                        else:
+                            try:
+                                shutil.rmtree(full_path)
+                                self.log(f"Deleted Folder: {full_path}")
+                            except Exception as e:
+                                self.log(f"Error deleting folder {full_path}: {e}")
+            except Exception as e:
+                self.log(f"Error scanning base folder {base_folder}: {e}")
 
     def run_full_reset(self, deep_scan=False, lock=False, scan_only=False):
         self.log(f"{'Scanning' if scan_only else 'Starting reset'} for: {self.app_name}")
@@ -86,6 +105,13 @@ class TrialResetter:
             self.log("Running deep heuristic scan for trial keys...")
             scanner = RegistryScanner()
             found_keys = scanner.scan_clsid_keys()
+            
+            # If deep scan, also scan for trial keywords that match the app name
+            if deep_scan:
+                keyword_keys = scanner.scan_trial_keywords()
+                # Only keep those that also mention the app name
+                filtered_keywords = [k for k in keyword_keys if self.app_name.lower() in k[1].lower()]
+                found_keys.extend(filtered_keywords)
 
             if scan_only:
                 for root, path in found_keys:

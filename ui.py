@@ -36,6 +36,12 @@ class TimeFreezerApp(ctk.CTk):
         self.btn_reset = ctk.CTkButton(self.sidebar_frame, text="Trial Reset", command=self.show_reset_tab)
         self.btn_reset.pack(pady=10, padx=20)
 
+        self.btn_history = ctk.CTkButton(self.sidebar_frame, text="History", command=self.show_history_tab)
+        self.btn_history.pack(pady=10, padx=20)
+
+        self.btn_settings = ctk.CTkButton(self.sidebar_frame, text="Settings", command=self.show_settings_tab)
+        self.btn_settings.pack(pady=10, padx=20)
+
         self.main_container = ctk.CTkFrame(self, fg_color="transparent")
         self.main_container.grid(row=0, column=1, padx=20, pady=20, sticky="nsew")
         self.main_container.grid_columnconfigure(0, weight=1)
@@ -43,6 +49,8 @@ class TimeFreezerApp(ctk.CTk):
 
         self.freeze_tab = self.create_freeze_tab()
         self.reset_tab = self.create_reset_tab()
+        self.history_tab = self.create_history_tab()
+        self.settings_tab = self.create_settings_tab()
 
         self.bottom_frame = ctk.CTkFrame(self, height=250)
         self.bottom_frame.grid(row=1, column=1, sticky="nsew", padx=20, pady=(0, 20))
@@ -64,11 +72,27 @@ class TimeFreezerApp(ctk.CTk):
 
     def show_freeze_tab(self):
         self.reset_tab.grid_forget()
+        self.settings_tab.grid_forget()
         self.freeze_tab.grid(row=0, column=0, sticky="nsew")
 
     def show_reset_tab(self):
         self.freeze_tab.grid_forget()
+        self.settings_tab.grid_forget()
+        self.history_tab.grid_forget()
         self.reset_tab.grid(row=0, column=0, sticky="nsew")
+
+    def show_history_tab(self):
+        self.freeze_tab.grid_forget()
+        self.reset_tab.grid_forget()
+        self.settings_tab.grid_forget()
+        self.history_tab.grid(row=0, column=0, sticky="nsew")
+        self.update_history_scroll()
+
+    def show_settings_tab(self):
+        self.freeze_tab.grid_forget()
+        self.reset_tab.grid_forget()
+        self.history_tab.grid_forget()
+        self.settings_tab.grid(row=0, column=0, sticky="nsew")
 
     def create_freeze_tab(self):
         frame = ctk.CTkFrame(self.main_container, fg_color="transparent")
@@ -86,6 +110,13 @@ class TimeFreezerApp(ctk.CTk):
 
         self.freeze_lock_var = ctk.BooleanVar(value=False)
         ctk.CTkCheckBox(frame, text="Use Registry Lock (Hard Freeze)", variable=self.freeze_lock_var).pack(pady=5)
+
+        ctk.CTkLabel(frame, text="Freeze Duration (seconds):").pack(pady=(10, 0))
+        self.freeze_duration_slider = ctk.CTkSlider(frame, from_=1, to=30, number_of_steps=29, command=lambda v: self.freeze_duration_label.configure(text=f"{int(v)} seconds"))
+        self.freeze_duration_slider.set(5)
+        self.freeze_duration_slider.pack(pady=5)
+        self.freeze_duration_label = ctk.CTkLabel(frame, text="5 seconds")
+        self.freeze_duration_label.pack()
 
         ctk.CTkLabel(frame, text="History:").pack(pady=(10, 0))
         self.freeze_history_menu = ctk.CTkOptionMenu(frame, values=self.get_history_list("Freeze"), command=self.load_freeze_history, width=300)
@@ -124,6 +155,88 @@ class TimeFreezerApp(ctk.CTk):
         ctk.CTkButton(btn_row, text="FULL RESET", fg_color="#d35400", hover_color="#a04000", width=140, command=self.run_reset).pack(side="left", padx=10)
 
         return frame
+
+    def create_history_tab(self):
+        frame = ctk.CTkFrame(self.main_container, fg_color="transparent")
+        ctk.CTkLabel(frame, text="Operation History", font=ctk.CTkFont(size=24, weight="bold")).pack(pady=10)
+        
+        self.history_scroll = ctk.CTkScrollableFrame(frame, width=500, height=400)
+        self.history_scroll.pack(fill="both", expand=True, padx=20, pady=10)
+        
+        self.update_history_scroll()
+        
+        return frame
+
+    def update_history_scroll(self):
+        # Clear existing widgets
+        for widget in self.history_scroll.winfo_children():
+            widget.destroy()
+            
+        for entry in self.history:
+            row = ctk.CTkFrame(self.history_scroll)
+            row.pack(fill="x", pady=2, padx=5)
+            
+            label_text = f"[{entry['mode']}] {entry['name']}"
+            if entry.get('date'):
+                label_text += f" - {entry['date']}"
+            
+            ctk.CTkLabel(row, text=label_text).pack(side="left", padx=10)
+            
+            # Using default arguments in lambda to capture the current value of 'entry'
+            ctk.CTkButton(row, text="Delete", width=60, fg_color="#c0392b", hover_color="#962d22", 
+                          command=lambda e=entry: self.delete_history_item(e)).pack(side="right", padx=10)
+            
+            ctk.CTkButton(row, text="Load", width=60, 
+                          command=lambda e=entry: self.load_history_item(e)).pack(side="right", padx=5)
+
+    def delete_history_item(self, entry):
+        self.history_manager.remove_entry(entry['mode'], entry['name'])
+        self.refresh_ui()
+        self.update_history_scroll()
+
+    def load_history_item(self, entry):
+        if entry['mode'] == "Freeze":
+            self.show_freeze_tab()
+            self.freeze_exe_path.set(entry['path'])
+            self.date_picker.set_date(entry['date'])
+        else:
+            self.show_reset_tab()
+            self.reset_app_name.delete(0, "end")
+            self.reset_app_name.insert(0, entry['name'])
+
+    def create_settings_tab(self):
+        frame = ctk.CTkFrame(self.main_container, fg_color="transparent")
+        ctk.CTkLabel(frame, text="Application Settings", font=ctk.CTkFont(size=24, weight="bold")).pack(pady=10)
+        
+        # Appearance Mode
+        ctk.CTkLabel(frame, text="Appearance Mode:").pack(pady=(10, 0))
+        self.appearance_menu = ctk.CTkOptionMenu(frame, values=["Dark", "Light", "System"], command=self.change_appearance)
+        self.appearance_menu.set("Dark")
+        self.appearance_menu.pack(pady=5)
+        
+        # Log Export
+        ctk.CTkButton(frame, text="Export Application Log", command=self.export_log).pack(pady=20)
+        
+        # Clear History
+        ctk.CTkButton(frame, text="Clear All History", fg_color="#c0392b", hover_color="#962d22", command=self.clear_all_history).pack(pady=5)
+        
+        return frame
+
+    def change_appearance(self, mode):
+        ctk.set_appearance_mode(mode)
+
+    def export_log(self):
+        log_content = self.console.get("1.0", "end")
+        path = filedialog.asksaveasfilename(defaultextension=".txt", filetypes=[("Text File", "*.txt")])
+        if path:
+            with open(path, "w") as f:
+                f.write(log_content)
+            messagebox.showinfo("Done", f"Log exported to {path}")
+
+    def clear_all_history(self):
+        if messagebox.askyesno("Confirm", "Clear all history entries?"):
+            self.history_manager.clear_history()
+            self.refresh_ui()
 
     def get_history_list(self, mode):
         items = [f"{e['name']} ({e.get('date') or 'Reset'})" for e in self.history if e['mode'] == mode]
@@ -186,6 +299,7 @@ class TimeFreezerApp(ctk.CTk):
     def run_freeze(self):
         exe = self.freeze_exe_path.get()
         date = self.date_picker.get()
+        duration = int(self.freeze_duration_slider.get())
         if exe == "No file selected":
             messagebox.showerror("Error", "Please select an EXE and enter a date.")
             return
@@ -196,7 +310,7 @@ class TimeFreezerApp(ctk.CTk):
         def task():
             try:
                 freezer = TimeFreezer(exe, date, log_callback=self.log)
-                freezer.launch(lock_registry=self.freeze_lock_var.get())
+                freezer.launch(delay=duration, lock_registry=self.freeze_lock_var.get())
                 self.history_manager.add_entry("Freeze", os.path.basename(exe), exe, date)
             except Exception as e:
                 self.log(f"ERROR: {e}")

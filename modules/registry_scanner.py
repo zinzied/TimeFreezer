@@ -42,6 +42,33 @@ class RegistryScanner:
             
         return found_keys
 
+    def scan_trial_keywords(self):
+        """Scans Software keys for trial keywords."""
+        found_keys = []
+        locations = [
+            (winreg.HKEY_CURRENT_USER, r"Software"),
+            (winreg.HKEY_LOCAL_MACHINE, r"Software")
+        ]
+        keywords = ["trial", "license", "activation", "registration", "expired", "period"]
+        
+        for root, base_path in locations:
+            try:
+                hBase = winreg.OpenKey(root, base_path, 0, winreg.KEY_READ)
+                i = 0
+                while True:
+                    try:
+                        subkey_name = winreg.EnumKey(hBase, i)
+                        full_path = f"{base_path}\{subkey_name}"
+                        if any(kw in subkey_name.lower() for kw in keywords):
+                            found_keys.append((root, full_path))
+                        i += 1
+                    except OSError:
+                        break
+                winreg.CloseKey(hBase)
+            except Exception:
+                pass
+        return found_keys
+
     def _is_trial_key(self, root, path):
         """Heuristic check for trial tracking keys based on zied.cmd logic."""
         try:
